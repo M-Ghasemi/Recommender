@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 """
-'User Recommender System' based on the Collaborative Filtering Technique.
+BookRecommender based on the Collaborative Filtering Technique.
 .. _The data is from guidetodatamining book:
     http://guidetodatamining.com.
 
@@ -11,7 +10,7 @@ supported methods:
     * euclidean
 
 Todo:
-    * Adding/Refactoring docstrings
+    * Refactoring/Adding docstrings
 """
 import copy
 import random
@@ -24,6 +23,13 @@ from db import mongodb as db
 
 
 def check_db(db):
+    """
+    checks and restores the Database.
+
+    Args:
+        db (MongoClient): Database cursor.
+    """
+
     collections = db.list_collection_names()
     collections_dict = {}
     message = None
@@ -74,7 +80,48 @@ def check_db(db):
             print(os.system(restore_cmd))
 
 
-def generate_2_related_users(common_ratings, user1_ratings, user2_ratings):
+def generate_2_related_users(common_ratings: int, user1_ratings: int, user2_ratings: int) -> tuple:
+    """
+    Generates two related users.
+    uses a database sample user to create to related users.
+
+    Args:
+        common_ratings: the number of books that both users rated to them.
+        user1_ratings: the number of books that only user 1 has rated to them.
+        user2_ratings: the number of books that only user 2 has rated to them.
+
+    Returns:
+        tuple: two users dictionary.
+
+    Example:
+        >>> from pprint import pprint
+
+        >>> user1, user2 = generate_2_related_users(4, 3, 2)
+
+        >>> pprint(user1)
+        {'age': 10,
+         'id': 4879,
+         'location': 'zip code9337',
+         'ratings': {'0002005018': 3,
+                     '0345417623': 3,
+                     '0375406328': 5,
+                     '0375759778': 10,
+                     '0449005615': 3,
+                     '0887841740': 7,
+                     '1575663937': 1}}
+
+        >>> pprint(user2)
+        {'age': 72,
+         'id': 5694,
+         'location': 'zip code8059',
+         'ratings': {'0002005018': 1,
+                     '0345417623': 1,
+                     '038078243X': 1,
+                     '055321215X': 7,
+                     '0887841740': 5,
+                     '1575663937': 4}}
+
+    """
     def anonymize_user(user):
         user['ratings'] = {}
         user['id'] = random.randint(1111, 9999)
@@ -116,14 +163,14 @@ def generate_2_related_users(common_ratings, user1_ratings, user2_ratings):
     return (user1, user2)
 
 
-class UserRecommender:
+class BookRecommender:
     """
-    This is a UserRecommender class based on Collaborative filtering Technique.
+    This is a BookRecommender class based on Collaborative filtering Technique.
     It implemented for a book rating system.
     """
 
     def __init__(self, k=1, metric='pearson', n=5):
-        """ initialize UserRecommender"""
+        """ initialize BookRecommender"""
 
         self.k = k  # Number of neighbors
         self.n = n  # Number of Items to recommend
@@ -522,7 +569,7 @@ class UserRecommender:
         return recommended_list
 
     def get_all_supported_metrics(self):
-        """This method returns all supported similarity Metrics by UserRecommender class"""
+        """This method returns all supported similarity Metrics by BookRecommender class"""
         return [
             self.manhattan_name,
             self.euclidean_name,
