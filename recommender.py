@@ -165,60 +165,68 @@ def generate_2_related_users(common_ratings: int, user1_ratings: int, user2_rati
 
 class BookRecommender:
     """
-    This is a BookRecommender class based on Collaborative filtering Technique.
-    It implemented for a book rating system.
+    Book Recommender class based on Collaborative filtering Technique.
+    Args:
+        k (int): the number of nearest neighbors to compare with.
+        metric (str): call BookRecommender.get_all_supported_metrics() to get a
+            list of all supported metrics. Any other value will raise a
+            ValueError exception.
+        n (int): the number of books to be recommended.
     """
 
-    def __init__(self, k=1, metric='pearson', n=5):
-        """ initialize BookRecommender"""
+    def __init__(self, k: int = 1, metric: str = 'pearson', n: int = 5):
 
-        self.k = k  # Number of neighbors
-        self.n = n  # Number of Items to recommend
-        self.metric = metric  # The metric used for distance computation
-        self.user = {}  # The user who we want to recommend - (active user)
+        self.k = k
+        self.n = n
+        self.metric = metric
+        self.user = {}
 
-        # The method that calculates the distance
-        # It depends on the metric and it changes with metric changes
-        self.compute_distance = getattr(self, metric)
+        # setting distance/similarity method based on the metric
+        try:
+            self.compute_distance = getattr(self, metric)
+        except AttributeError:
+            raise ValueError('metric is not supported!')
 
-        self.books = self.get_books_dict()  # A dictionary of all data base books
+        self.books = self.get_books_dict()
 
-        # A list of users who have at least one common rating with the active user
         self.related_users = []
 
-        # Distances computed for each metric, will be stored in a properly named variable
+        # caching  the distances computed for each metric
         self.cosine_distances = []
         self.pearson_distances = []
         self.manhattan_distances = []
         self.euclidean_distances = []
 
-        # The name of various metrics
         self.euclidean_name = 'euclidean'
         self.pearson_name = 'pearson'
         self.manhattan_name = 'manhattan'
         self.cosine_name = 'cosine'
 
-    def set_user(self, user_id):
+    def set_user(self, user_id: int):
+        """
+        cleans all computed data and sets the new user.
+        """
         self.clean()
         self.user = db.users.find_one({'id': user_id})
 
-    def get_dissimilarity_distance_metrics(self):
-        """This method returns names of methods that calculate distance (not similarity)
-        of two users."""
+    def get_dissimilarity_distance_metrics(self) -> list:
+        """
+        Returns:
+            a list of the string names of the distance based methods.
+        """
         return [self.manhattan_name, self.euclidean_name]
 
-    def get_similarity_distance_metrics(self):
-        """This method returns names of methods that calculate distance (not similarity)
-        of two users."""
+    def get_similarity_distance_metrics(self) -> list:
+        """
+        Returns:
+            a list of the string names of the similarity based methods.
+        """
         return [self.cosine_name, self.pearson_name]
 
-    def get_books_dict(self):
+    def get_books_dict(self) -> dict:
         """
-        This method returns a dictionary of all data base books in bellow format:
-        {
-            'isb': '[title] by [author]'
-        }
-
+        Returns:
+            a dictionary of all the books in the database.
         """
         book_dict = {}
         for book in self.find_books():
@@ -226,8 +234,12 @@ class BookRecommender:
 
         return book_dict
 
-    def find_books(self, isbn_list=None):
-        """This method returns a list of data base books."""
+    def find_books(self, isbn_list: list = None) -> list:
+        """
+        Returns:
+            a list of the database books with isbn_list ids. if isbn_list is
+            not provided, then returns all the database books.
+        """
         if isbn_list:
             books = list(db.books.find(
                 {
@@ -241,9 +253,20 @@ class BookRecommender:
 
         return books
 
-    def find_related_users(self, user):
+    def find_related_users(self, user: dict) -> list:
         """
-        This method returns a list of users who have at least one common rating with the active user.
+        Args:
+            user (dictionary): id, and ratings are required fields
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+
+        Returns:
+            a list of users with at least one common rating with the user
         """
         if self.related_users:
             return self.related_users
@@ -258,16 +281,21 @@ class BookRecommender:
 
         return self.related_users
 
-    def get_user_description(self):
-        """This method Returns a representation of active user"""
+    def get_user_description(self) -> str:
+        """
+        Returns:
+            a string representation (location and age) of the self.users
+        """
         user_description = self.user['location']
         if self.user.get('age'):
             user_description += ' (age: ' + str(self.user['age']) + ')'
 
         return user_description
 
-    def user_ratings(self, n=5):
-        """This method returns n top ratings of active user"""
+    def user_ratings(self, n: int = 5):
+        """
+        prints n top ratings of the self.user (descending)
+        """
 
         if self.user is None:
             print('Please first set "active user" by calling set_user method')
@@ -302,8 +330,28 @@ class BookRecommender:
         for rating in ratings[:n]:
             print("{}\t{}".format(*rating))
 
-    def pearson(self, user1, user2):
-        """This method compute Pearson-Correlation-Coefficient for two users ratings"""
+    def pearson(self, user1: dict, user2: dict) -> float:
+        """
+        Args:
+            user1 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+            user2 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+        Returns:
+            float number pearson correlation coefficient of two users ratings
+        """
 
         rating1 = user1['ratings']
         rating2 = user2['ratings']
@@ -338,8 +386,29 @@ class BookRecommender:
 
         return pcc
 
-    def minkowski(self, user1, user2, r):
-        """This method compute Minkowski distance between two users"""
+    def minkowski(self, user1: dict, user2: dict, r: int) -> float:
+        """
+        Args:
+            user1 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+            user2 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+            r (int): root number of minkowski formula. (1 for manhattan, 2 for euclidean)
+        Returns:
+            float number minkowski distance of two users ratings
+        """
 
         rating1 = user1['ratings']
         rating2 = user2['ratings']
@@ -356,17 +425,76 @@ class BookRecommender:
 
         return minkowski_distance
 
-    def manhattan(self, user1, user2):
-        """This method compute Manhattan distance between two users"""
+    def manhattan(self, user1: dict, user2: dict) -> float:
+        """
+        Args:
+            user1 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+            user2 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+        Returns:
+            float number manhattan distance of two users ratings
+        """
         return self.minkowski(user1, user2, 1)
 
-    def euclidean(self, user1, user2):
-        """This method compute Euclidean distance between two users"""
+    def euclidean(self, user1: dict, user2: dict) -> float:
+        """
+        Args:
+            user1 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+            user2 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+        Returns:
+            float number euclidean distance of two users ratings
+        """
         return self.minkowski(user1, user2, 2)
 
-    def cosine(self, user1, user2):
-        """This method compute Cosine similarity between two users"""
-
+    def cosine(self, user1: dict, user2: dict) -> float:
+        """
+        Args:
+            user1 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+            user2 (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+        Returns:
+            float number cosine similarity of two users ratings
+        """
         rating1 = user1['ratings']
         rating2 = user2['ratings']
 
@@ -385,8 +513,23 @@ class BookRecommender:
 
         return cosine_similarity
 
-    def compute_nearest_neighbor(self, user):
-        """This method a sorted list of users based on their distance to active user"""
+    def compute_nearest_neighbor(self, user: dict):
+        """
+        computes, caches and returns the neighbors according to self.metric.
+        Args:
+            user (dict): user document.
+                {
+                    'id': user_id,
+                    'ratings': {
+                        'isbn': integer rate from 1 to 10,
+                        'another isbn': integer rate from 1 to 10,
+                    },
+                }
+        Returns:
+            a sorted list of neighbors of the self.user. each entry is a tuple
+            of id and distance/similarity. if self.user has no
+            ratings then returns an empty list.
+        """
 
         # Distances computed for each metric, will be stored in a properly named variable
         distances_attribute_name = '{}_distances'.format(self.metric)
@@ -427,16 +570,19 @@ class BookRecommender:
 
         return getattr(self, distances_attribute_name)
 
-    def set_metric(self, metric):
-        """This method will set metric and so compute_distance method"""
-
+    def set_metric(self, metric: str):
+        """sets metric and also compute_distance method
+        Args:
+            metric (str): call BookRecommender.get_all_supported_metrics()
+            to get a list of all supported metrics.
+        """
         # set method of distance computation according to new metric
         self.compute_distance = getattr(self, metric)
         # set metric
         self.metric = metric
 
     def clean(self):
-        """This method cleans all cached data"""
+        """cleans all non default data"""
         self.related_users = []
         self.cosine_distances = []
         self.pearson_distances = []
@@ -449,14 +595,15 @@ class BookRecommender:
         self.user = {}
 
     def get_total_distance(self, nearest, number_of_neibors):
-        # This method returns sum of (similarity/dissimilarity) distances
+        """returns sum of (similarity/dissimilarity) distances"""
         return float(sum((nearest[i][1] for i in range(number_of_neibors))))
 
-    def recommend_according_to_similarity_metrics(self):
+    def recommend_according_to_similarity_metrics(self) -> list:
         """
-        This method makes a recommendation list according to
-        similarity metrics like Cosine and Pearson.
-        ''''Note that Bigger number shows stronger similarity''''
+        makes a recommendation list according to similarity metrics like
+        Cosine and Pearson.
+        Note that this function suppose that self.metric is already set to one
+        of the supported similarity metrics.
         """
 
         recommendations = defaultdict(int)
@@ -498,11 +645,12 @@ class BookRecommender:
 
         return recommended_list
 
-    def recommend_according_to_dissimilarity_metrics(self):
+    def recommend_according_to_dissimilarity_metrics(self) -> list:
         """
-        This method makes a recommendation list according to
-        dissimilarity metrics like Manhattan and Euclidean
-        ''''Note that Bigger number shows weaker similarity''''
+        makes a recommendation list according to similarity metrics like
+        euclidean and manhattan.
+        Note that this function suppose that self.metric is already set to one
+        of the supported similarity metrics.
         """
 
         recommendations = defaultdict(int)
@@ -550,9 +698,14 @@ class BookRecommender:
 
         return recommended_list
 
-    def recommend_by_metric(self, metric):
-        """This method makes a recommendation list according to metric"""
-
+    def recommend_by_metric(self, metric: str) -> list:
+        """
+        Args:
+            metric (str): call BookRecommender.get_all_supported_metrics()
+            to get a list of all supported metrics.
+        Returns:
+            a list of recommended book and their rank.
+        """
         self.set_metric(metric)
 
         # Some methods like euclidean and manhattan compute distance of two users,
@@ -568,8 +721,11 @@ class BookRecommender:
 
         return recommended_list
 
-    def get_all_supported_metrics(self):
-        """This method returns all supported similarity Metrics by BookRecommender class"""
+    def get_all_supported_metrics(self) -> list:
+        """
+        Returns:
+            a list all supported metrics
+        """
         return [
             self.manhattan_name,
             self.euclidean_name,
@@ -583,10 +739,17 @@ class BookRecommender:
             print('--Book: {}, --Rank: {}'.format(item[0], round(item[1])))
         print()
 
-    def recommend(self, metric, user_id=None, k=1, n=5, r=2):
+    def recommend(self, metric: str, user_id: int = None, k: int = 1, n: int = 5, r: int = 2):
         """
-        This method prints a list of recommendations and stores all related informations
-        for further use.
+        prints an n item list of recommended books.
+
+        Args:
+            metric (str): call BookRecommender.get_all_supported_metrics()
+                to get a list of all supported metrics. Any other value will
+                raise a ValueError exception.
+            user_id (int): int number database user id.
+            k (int): the number of nearest neighbors to compare with.
+            n (int): the number of books to be recommended.
         """
         if user_id:
             if user_id != self.user.get('id'):
